@@ -154,7 +154,8 @@ class Finestra(QtWidgets.QWidget):
         """
         # Open file dialog to select the database file
         nome_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Apri database', '',
-                                                             'Database (*.db *.sqlite)')
+                                                          'Database (*.db *.sqlite)')
+        self.nome_file = nome_file
         if nome_file:
             self.connessione = sqlite3.connect(nome_file)
             self.cursor = self.connessione.cursor()
@@ -196,20 +197,20 @@ class Finestra(QtWidgets.QWidget):
         """
         tabella_selezionata = self.lista_tabelle.currentText()
         self.cursor.execute(f"SELECT * FROM {tabella_selezionata}")
-        data = self.cursor.fetchall()
-        colonne = [desc[0] for desc in self.cursor.description]
-        self.tabella.setColumnCount(len(colonne))
-        self.tabella.setRowCount(len(data))
-        self.tabella.setHorizontalHeaderLabels(colonne)
+        self.data = self.cursor.fetchall()
+        self.colonne = [desc[0] for desc in self.cursor.description]
+        self.tabella.setColumnCount(len(self.colonne))
+        self.tabella.setRowCount(len(self.data))
+        self.tabella.setHorizontalHeaderLabels(self.colonne)
         self.tabella.setColumnWidth(0, 200)
 
         # Fill the table with data
-        for i, row in enumerate(data):
+        for i, row in enumerate(self.data):
             for j, value in enumerate(row):
                 self.tabella.setItem(i, j, QtWidgets.QTableWidgetItem(str(value)))
 
         # Add translation options for selected columns
-        for i, colonna in enumerate(colonne):
+        for i, colonna in enumerate(self.colonne):
             checkbox = QtWidgets.QCheckBox(self)
             checkbox.setText(colonna)
             self.opzioni_traduzione[colonna] = checkbox
@@ -234,8 +235,32 @@ class Finestra(QtWidgets.QWidget):
         :return:
         """
         if self.connessione is not None:
-            self.connessione.commit()
-            self.connessione.close()
+
+            for row_num in range(self.tabella.rowCount()):
+                row_data = []
+                for col_num in range(self.tabella.columnCount()):
+                    item = self.tabella.item(row_num, col_num)
+                    if item is not None:
+                        row_data.append(item.text())
+                    else:
+                        row_data.append('')
+                id_column_name = self.colonne[0]
+                set_query = ', '.join([f"{self.colonne[i]}='{row_data[i]}'" for i in range(len(self.colonne))])
+                try:
+                    query = f"UPDATE {self.lista_tabelle.currentText()} SET {set_query} WHERE {id_column_name}={id_column_name}"
+                    self.cursor.execute(query)
+                    self.connessione.commit()
+                    #conn.close()
+                    self.show_info('Translation saved')
+                except:
+                    self.show_info('Ooppps.., somethig is wrong')
+
+
+
+        elif self.connessione is None:
+            self.show_info('You need connect the database')
+        else:
+            self.show_info('No changed data')
 
     def traduci_dati(self):
         """
@@ -243,6 +268,29 @@ class Finestra(QtWidgets.QWidget):
         :return:
         """
         try:
+            items = ['it', 'en', 'fr', 'ar', 'de', 'es']
+            selected_item, ok = QInputDialog.getItem(None,
+                                                     'Lingua di autput',
+                                                     'Seleziona una lingua:',
+                                                     items,
+                                                     0,
+                                                     False)
+            if ok:
+                selected_item
+            else:
+                print('No item selected')
+
+            selected_item2, ok = QInputDialog.getItem(None,
+                                                      'Lingua di autput',
+                                                      'Seleziona una lingua:',
+                                                      items,
+                                                      0,
+                                                      False)
+
+            if ok:
+                selected_item2
+            else:
+                print('No item selected')
             translator = Translator()
 
             for i in range(self.tabella.rowCount()):
@@ -253,7 +301,7 @@ class Finestra(QtWidgets.QWidget):
 
                     if self.opzioni_traduzione[colonna].isChecked():
                         item = self.tabella.item(i, j)
-                        t = threading.Thread(target = self.translate_item, args = (item, translator))
+                        t = threading.Thread(target = self.translate_item, args = (item, translator,selected_item,selected_item2))
                         thread_list.append(t)
                         t.start()
 
@@ -272,7 +320,7 @@ class Finestra(QtWidgets.QWidget):
         except Exception as e:
             print(str(e))
 
-    def translate_item(self, item, translator):
+    def translate_item(self, item, translator, in_l, out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
         :param item:
@@ -281,7 +329,7 @@ class Finestra(QtWidgets.QWidget):
         """
         if item is not None and item.text() != '':
             testo = item.text()
-            traduzione = translator.translate(testo, dest = 'en').text
+            traduzione = translator.translate(testo, src=in_l, dest = out_l).text
             item.setText(traduzione)
 
     def verifica_traduzione(self, testo_originale, testo_tradotto):
