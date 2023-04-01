@@ -1,12 +1,15 @@
-import sqlite3
-import threading
-from PyQt5 import QtGui
+from PyQt5 import QtGui,QtWidgets
 from PyQt5.QtWidgets import *
-from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt,QCoreApplication
 from googletrans import Translator
 import difflib
 import time
+import requests
+import deepl
+from deepl import deepl
+import os
+import sqlite3
+import threading
 class Finestra(QtWidgets.QWidget):
     def __init__(self):
         """
@@ -18,6 +21,7 @@ class Finestra(QtWidgets.QWidget):
         self.tabelle = []
         self.opzioni_traduzione = {}
         self.init_ui()
+        self.apikey=''
 
     def init_ui(self):
         """
@@ -36,9 +40,21 @@ class Finestra(QtWidgets.QWidget):
         apri_action.triggered.connect(self.apri_database)
         file_menu.addAction(apri_action)
 
+        # Creare l'azione Salva
+        salva_menu = QtWidgets.QMenu('Salva', self)
+        file_menu.addMenu(salva_menu)
         salva_action = QtWidgets.QAction('Salva', self)
         salva_action.triggered.connect(self.salva_database)
-        file_menu.addAction(salva_action)
+        salva_menu.addAction(salva_action)
+
+        salva_come = QtWidgets.QAction('Salva come...', self)
+        salva_come.triggered.connect(self.salva_database)
+        salva_menu.addAction(salva_come)
+
+        rollback = QtWidgets.QAction('Rollback', self)
+        rollback.triggered.connect(self.salva_database)
+        salva_menu.addAction(rollback)
+
 
         stop_action = QtWidgets.QAction('Stop', self)
         stop_action.triggered.connect(self.stop_process)
@@ -56,17 +72,11 @@ class Finestra(QtWidgets.QWidget):
         valida_traduzione_action.triggered.connect(self.action_verifica_traduzione)
         valida_menu.addAction(valida_traduzione_action)
 
-        self.btn_apri = QtWidgets.QPushButton('Apri database', self)
-        self.btn_salva = QtWidgets.QPushButton('Salva database', self)
-        self.btn_stop = QtWidgets.QPushButton('Stop processo', self)
         self.btn_traduci = QtWidgets.QPushButton('Traduci', self)
         self.btn_seleziona_tutti = QtWidgets.QPushButton('Seleziona tutti', self)
         self.btn_deseleziona_tutti = QtWidgets.QPushButton('Deseleziona tutti', self)
 
         # Connect button signals to slots
-        self.btn_apri.clicked.connect(self.apri_database)
-        self.btn_salva.clicked.connect(self.salva_database)
-        self.btn_stop.clicked.connect(self.stop_process)
         self.btn_traduci.clicked.connect(self.traduci_dati)
 
         # Add progress bar and table widgets
@@ -87,9 +97,7 @@ class Finestra(QtWidgets.QWidget):
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(menubar)
         vbox.addWidget(self.lbl_validazione)
-        self.btn_apri.setHidden(True)
-        self.btn_salva.setHidden(True)
-        self.btn_stop.setHidden(True)
+
         vbox.addWidget(self.btn_traduci)
         vbox.addWidget(self.progress_bar)
         vbox.addWidget(self.tabella)
@@ -98,9 +106,6 @@ class Finestra(QtWidgets.QWidget):
         hbox.addWidget(self.btn_deseleziona_tutti)
         vbox.addLayout(hbox)
         self.find_replace_dialog = FindReplaceDialog(self)
-
-
-
 
         # Set window properties
         self.setLayout(vbox)
@@ -158,10 +163,29 @@ class Finestra(QtWidgets.QWidget):
         self.nome_file = nome_file
         if nome_file:
             self.connessione = sqlite3.connect(nome_file)
+            self.connessione.isolation_level = None
             self.cursor = self.connessione.cursor()
 
             # Get table names from database
-            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                        "AND name NOT LIKE 'sqlite_%'"
+                        "AND name NOT LIKE 'idx_%'"
+                        "AND name NOT LIKE 'views_%'"
+                        "AND name NOT LIKE 'virts_%'"
+                        "AND name NOT LIKE 'geometry_%'"
+                        "AND name NOT LIKE 'raster_%'"
+                        "AND name NOT LIKE 'spatialite%'"
+                        "AND name NOT LIKE 'sqlite%'"
+                        "AND name NOT LIKE 'ISO%'"
+                        "AND name NOT LIKE 'spatial_%'"
+                        "AND name NOT LIKE 'rl2map%'"
+                        "AND name NOT LIKE 'coverage%'"
+                        "AND name NOT LIKE 'wms%'"
+                        "AND name NOT LIKE 'vector%'"
+                        "AND name NOT LIKE 'SE_%'"
+                        "AND name NOT LIKE 'stored%'"
+                        "AND name NOT LIKE 'sql_%'"
+                        ";")
             self.tabelle = [tabella[0] for tabella in self.cursor.fetchall()]
             print(self.tabelle)
             self.visualizza_tabelle()
@@ -173,7 +197,7 @@ class Finestra(QtWidgets.QWidget):
         """
         # Create combo box to show tables in the database
         self.lista_tabelle = QtWidgets.QComboBox(self)
-        for tabella in self.tabelle:
+        for tabella in sorted(self.tabelle):
             self.lista_tabelle.addItem(tabella)
 
         # Add button to select table
@@ -251,7 +275,7 @@ class Finestra(QtWidgets.QWidget):
                     self.cursor.execute(query)
                     self.connessione.commit()
                 except Exception as e:
-                    pass
+                    self.connessione.rollback()
             if query:
 
                 self.show_info('Saved')
@@ -264,71 +288,7 @@ class Finestra(QtWidgets.QWidget):
         else:
             self.show_info('No changed data')
 
-    def traduci_dati(self):
-        """
-        Traduce i dati nelle colonne selezionate e visualizza l'avanzamento utilizzando la barra di avanzamento.
-        :return:
-        """
-        try:
-            start_time = time.time()
-            items = ['it', 'en', 'fr', 'ar', 'de', 'es']
-            selected_item, ok = QInputDialog.getItem(None,
-                                                     'Lingua di input',
-                                                     'Seleziona una lingua di input:',
-                                                     items,
-                                                     0,
-                                                     False)
-            if ok:
-                selected_item
-            else:
-                print('No item selected')
-
-            selected_item2, ok = QInputDialog.getItem(None,
-                                                      'Lingua di output',
-                                                      'Seleziona una lingua di output:',
-                                                      items,
-                                                      0,
-                                                      False)
-
-            if ok:
-                selected_item2
-            else:
-                print('No item selected')
-            self.progress_bar.setRange(0, self.tabella.rowCount())
-
-            self.progress_bar.setValue(0)
-            translator = Translator()
-
-            for i in range(self.tabella.rowCount()):
-                thread_list = []
-
-                for j in range(self.tabella.columnCount()):
-                    colonna = self.tabella.horizontalHeaderItem(j).text()
-
-                    if self.opzioni_traduzione[colonna].isChecked():
-                        item = self.tabella.item(i, j)
-                        t = threading.Thread(target = self.translate_item, args = (item, translator,selected_item,selected_item2))
-                        thread_list.append(t)
-                        t.start()
-
-                for t in thread_list:
-                    t.join()
-
-                progress = int(((i + 1) / self.tabella.rowCount()) * 100)
-                self.progress_bar.setValue(i + 1)
-                elapsed_time = time.time() - start_time
-                estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
-                self.progress_bar.setTextVisible(True)
-                self.progress_bar.setFormat(f"Traduzione riga %v/%m'\n'Tempo trascorso: {elapsed_time:.1f}s /Tempo Stimato {estimated_time:.1f}s ({progress}%)")
-
-            QtWidgets.QApplication.processEvents()
-            self.show_info('Finished')
-
-            self.progress_bar.setValue(0)
-        except Exception as e:
-            print(str(e))
-
-    def translate_item(self, item,translator,in_l,out_l):
+    def translate_google(self,item, translator, in_l, out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
         :param item:
@@ -337,8 +297,156 @@ class Finestra(QtWidgets.QWidget):
         """
         if item is not None and item.text() != '':
             testo = item.text()
-            traduzione = translator.translate(testo, src=in_l, dest = out_l).text
+            traduzione = translator.translate(testo, src = in_l, dest = out_l).text
             item.setText(traduzione)
+
+    def translate_deepl(self,item,auth_key, in_l, out_l):
+
+        if item is not None and item.text() != '':
+            testo = item.text()
+            translator = deepl.Translator(auth_key)
+            t = translator.translate_text(testo,in_l, out_l)
+
+
+            item.setText(traduzione)
+
+    def traduci_dati(self):
+        """
+        Traduce i dati nelle colonne selezionate e visualizza l'avanzamento utilizzando la barra di avanzamento.
+        :return:
+        """
+        try:
+            start_time = time.time()
+
+
+
+
+            translator_options = ['google', 'deepl']
+
+            selected_l, ok = QInputDialog.getItem(None,
+                                                  'Tipo di traduttore',
+                                                  'Seleziona un traduttore:',
+                                                  translator_options,
+                                                  0,
+                                                  False)
+            if not ok:
+                print('No item selected')
+                return
+
+            if selected_l=='google':
+                language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
+                                    'es': 'Spanish'}
+                translator = Translator()
+
+            elif selected_l=='deepl':
+                language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
+                                    'es': 'Spanish'}
+                #translator_deepl = deepl.Translator(self.apikey_deepl())
+
+
+            selected_item, ok = QInputDialog.getItem(None,
+                                                     'Lingua di input',
+                                                     'Seleziona una lingua di input:',
+                                                     list(language_options.values()),
+                                                     0,
+                                                     False)
+            print(list(language_options.values()))
+            if not ok:
+                print('No item selected')
+                return
+
+            selected_item2, ok = QInputDialog.getItem(None,
+                                                      'Lingua di output',
+                                                      'Seleziona una lingua di output:',
+                                                      list(language_options.values()),
+                                                      0,
+                                                      False)
+            print(list(language_options.values()))
+            if not ok:
+                print('No item selected')
+                return
+
+            in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
+            out_l = list(language_options.keys())[list(language_options.values()).index(selected_item2)]
+            print(in_l,out_l)
+            self.progress_bar.setRange(0, self.tabella.rowCount())
+            self.progress_bar.setValue(0)
+
+            thread_list = []
+
+            for j in [j for j, colonna in
+                      enumerate(self.tabella.horizontalHeaderItem(j).text() for j in range(self.tabella.columnCount()))
+                      if self.opzioni_traduzione[colonna].isChecked()]:
+                for i in range(self.tabella.rowCount()):
+                    item = self.tabella.item(i, j)
+
+                    if selected_l == 'deepl':
+                        translator_deepl=self.apikey_deepl()
+                        t = threading.Thread(target = self.translate_deepl, args = (item, translator_deepl,in_l, out_l))
+                    if selected_l =='google':
+                        translator= Translator()
+                        t = threading.Thread(target = self.translate_google, args = (item, translator, in_l, out_l))
+                    thread_list.append(t)
+                    t.start()
+
+            for t in thread_list:
+                t.join()
+
+            elapsed_time = time.time() - start_time
+            estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
+            self.progress_bar.setTextVisible(True)
+            self.progress_bar.setFormat(
+                f"Traduzione riga {self.tabella.rowCount()}/{self.tabella.rowCount()}\nTempo trascorso: {elapsed_time:.1f}s /Tempo Stimato {estimated_time:.1f}s ({100}%)")
+            self.progress_bar.setAlignment(Qt.AlignCenter)
+            self.progress_bar.setValue(self.progress_bar.value())
+            self.show_info('Finished')
+
+            self.progress_bar.setValue(0)
+        except Exception as e:
+            print(str(e))
+
+
+
+    def apikey_deepl(self):
+        # Verifica se il file deepl_api_key.txt esiste
+        if os.path.exists('deepl_api_key.txt'):
+            # Leggi l'API Key dal file
+            with open('deepl_api_key.txt', 'r') as f:
+                api_key = f.read().strip()
+                headers = {"Authorization": f"DeepL-Auth-Key {api_key}"}
+                response = requests.post("https://api.deepl.com/v2/auth", headers = headers)
+
+                if response.status_code == 200:
+                    print('apikey valida')# L'API key è valida
+                else:
+                    reply = QMessageBox.question(self, 'Warning', 'Apikey non valida'+'\n'
+                                                 +'Clicca ok per inserire la chiave', QMessageBox.Ok|QMessageBox.Cancel)
+                    if reply==QMessageBox.Ok:
+
+                        api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Inserisci apikey valida:')
+                        if ok:
+                            # Salva la nuova API Key nel file
+                            with open('deepl_api_key.txt', 'w') as f:
+                                f.write(api_key)
+                                f.close()
+                            with open('deepl_api_key.txt', 'r') as f:
+                                api_key = f.read().strip()
+                    else:
+                        return
+        else:
+            # Chiedi all'utente di inserire una nuova API Key
+
+            api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Inserisci apikey:')
+            if ok:
+                # Salva la nuova API Key nel file
+                with open('deepl_api_key.txt', 'w') as f:
+                    f.write(api_key)
+                    f.close()
+                with open('deepl_api_key.txt', 'r') as f:
+                    api_key = f.read().strip()
+
+        return api_key
+
 
     def verifica_traduzione(self, testo_originale, testo_tradotto):
         """
@@ -391,7 +499,18 @@ class Finestra(QtWidgets.QWidget):
         dialog.setWindowTitle('Info')
         dialog.setStandardButtons(QMessageBox.Ok)
         dialog.show()
-
+    def show_warning(self, message):
+        """
+        Funzione per mostrare i messaggi
+        :param message:
+        :return:
+        """
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Information)
+        dialog.setText(message)
+        dialog.setWindowTitle('Warning')
+        dialog.setStandardButtons(QMessageBox.Cancel|QMessageBox.Ok)
+        dialog.show()
 class TestoNonVuotoValidator(QtGui.QValidator):
     """
     Funzione di convalida che controlla se il testo di input è vuoto o meno.
