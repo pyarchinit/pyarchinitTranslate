@@ -1,6 +1,6 @@
 from PyQt5 import QtGui,QtWidgets
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt,QCoreApplication
+from PyQt5.QtCore import Qt
 from googletrans import Translator
 import difflib
 import time
@@ -339,6 +339,8 @@ class Finestra(QtWidgets.QWidget):
                 translator = Translator()
 
             elif selected_l=='deepl':
+
+                translator_deepl = self.apikey_deepl()
                 language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
                                     'es': 'Spanish'}
                 #translator_deepl = deepl.Translator(self.apikey_deepl())
@@ -381,7 +383,7 @@ class Finestra(QtWidgets.QWidget):
                     item = self.tabella.item(i, j)
 
                     if selected_l == 'deepl':
-                        translator_deepl=self.apikey_deepl()
+                        #translator_deepl=self.apikey_deepl()
                         t = threading.Thread(target = self.translate_deepl, args = (item, translator_deepl,in_l, out_l))
                     if selected_l =='google':
                         translator= Translator()
@@ -389,16 +391,18 @@ class Finestra(QtWidgets.QWidget):
                     thread_list.append(t)
                     t.start()
 
+                    self.progress_bar.setValue(i + 1)
+                    pct = (i + 1) / self.tabella.rowCount()
+                    elapsed_time = time.time() - start_time
+                    estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
+                    self.progress_bar.setTextVisible(True)
+                    self.progress_bar.setFormat(f"Traduzione riga {i + 1}/{self.tabella.rowCount()} - colonna {j + 1}/"
+                                                f"{self.tabella.columnCount()}\nTempo trascorso: {elapsed_time:.1f}s /"
+                                                f"Tempo Stimato {estimated_time:.1f}s ({pct:.0%})")
+                    self.progress_bar.setAlignment(Qt.AlignCenter)
+
             for t in thread_list:
                 t.join()
-
-            elapsed_time = time.time() - start_time
-            estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
-            self.progress_bar.setTextVisible(True)
-            self.progress_bar.setFormat(
-                f"Traduzione riga {self.tabella.rowCount()}/{self.tabella.rowCount()}\nTempo trascorso: {elapsed_time:.1f}s /Tempo Stimato {estimated_time:.1f}s ({100}%)")
-            self.progress_bar.setAlignment(Qt.AlignCenter)
-            self.progress_bar.setValue(self.progress_bar.value())
             self.show_info('Finished')
 
             self.progress_bar.setValue(0)
