@@ -6,7 +6,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from googletrans import Translator
 import difflib
-
+import time
 class Finestra(QtWidgets.QWidget):
     def __init__(self):
         """
@@ -247,14 +247,16 @@ class Finestra(QtWidgets.QWidget):
                 id_column_name = self.colonne[0]
                 set_query = ', '.join([f"{self.colonne[i]}='{row_data[i]}'" for i in range(len(self.colonne))])
                 try:
-                    query = f"UPDATE {self.lista_tabelle.currentText()} SET {set_query} WHERE {id_column_name}={id_column_name}"
+                    query = f"UPDATE {self.lista_tabelle.currentText()} SET {set_query} WHERE {id_column_name}={row_num +1 }"
                     self.cursor.execute(query)
                     self.connessione.commit()
-                    #conn.close()
-                    self.show_info('Translation saved')
-                except:
-                    self.show_info('Ooppps.., somethig is wrong')
+                except Exception as e:
+                    pass
+            if query:
 
+                self.show_info('Saved')
+            else:
+                self.show_info('OOPs.. somethig is wrog')
 
 
         elif self.connessione is None:
@@ -268,10 +270,11 @@ class Finestra(QtWidgets.QWidget):
         :return:
         """
         try:
+            start_time = time.time()
             items = ['it', 'en', 'fr', 'ar', 'de', 'es']
             selected_item, ok = QInputDialog.getItem(None,
-                                                     'Lingua di autput',
-                                                     'Seleziona una lingua:',
+                                                     'Lingua di input',
+                                                     'Seleziona una lingua di input:',
                                                      items,
                                                      0,
                                                      False)
@@ -281,8 +284,8 @@ class Finestra(QtWidgets.QWidget):
                 print('No item selected')
 
             selected_item2, ok = QInputDialog.getItem(None,
-                                                      'Lingua di autput',
-                                                      'Seleziona una lingua:',
+                                                      'Lingua di output',
+                                                      'Seleziona una lingua di output:',
                                                       items,
                                                       0,
                                                       False)
@@ -291,6 +294,9 @@ class Finestra(QtWidgets.QWidget):
                 selected_item2
             else:
                 print('No item selected')
+            self.progress_bar.setRange(0, self.tabella.rowCount())
+
+            self.progress_bar.setValue(0)
             translator = Translator()
 
             for i in range(self.tabella.rowCount()):
@@ -309,9 +315,11 @@ class Finestra(QtWidgets.QWidget):
                     t.join()
 
                 progress = int(((i + 1) / self.tabella.rowCount()) * 100)
-                self.progress_bar.setValue(progress)
-
-
+                self.progress_bar.setValue(i + 1)
+                elapsed_time = time.time() - start_time
+                estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
+                self.progress_bar.setTextVisible(True)
+                self.progress_bar.setFormat(f"Traduzione riga %v/%m'\n'Tempo trascorso: {elapsed_time:.1f}s /Tempo Stimato {estimated_time:.1f}s ({progress}%)")
 
             QtWidgets.QApplication.processEvents()
             self.show_info('Finished')
@@ -320,7 +328,7 @@ class Finestra(QtWidgets.QWidget):
         except Exception as e:
             print(str(e))
 
-    def translate_item(self, item, translator, in_l, out_l):
+    def translate_item(self, item,translator,in_l,out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
         :param item:
