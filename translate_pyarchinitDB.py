@@ -6,7 +6,6 @@ import difflib
 import time
 import requests
 import deepl
-from deepl import deepl
 import os
 import sqlite3
 import threading
