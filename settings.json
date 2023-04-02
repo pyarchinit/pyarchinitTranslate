@@ -71,7 +71,11 @@
   },
   {
    "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/icon;icon/"
+   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/OIP.jpg;."
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/intro.wav;."
   }
  ],
  "nonPyinstallerOptions": {
