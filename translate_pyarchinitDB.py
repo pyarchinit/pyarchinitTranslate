@@ -4,7 +4,6 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtMultimedia import QMediaContent,QMediaPlayer
-from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtWidgets import *
 from googletrans import Translator
 import difflib
@@ -78,6 +77,10 @@ class Finestra(QtWidgets.QWidget):
         salva_come = QtWidgets.QAction('Salva come...', self)
         salva_come.triggered.connect(self.salva_come)
         salva_menu.addAction(salva_come)
+
+        importa = QtWidgets.QAction('Importa', self)
+        importa.triggered.connect(self.importa)
+        file_menu.addAction(importa)
 
         esporta = QtWidgets.QAction('Esporta', self)
         esporta.triggered.connect(self.esporta)
@@ -230,6 +233,13 @@ class Finestra(QtWidgets.QWidget):
             print(self.tabelle)
             self.visualizza_tabelle()
 
+    def importa(self):
+        name_csv, _= QtWidgets.QFileDialog.getOpenFileName(self, 'Apri csv', '',
+                                                          'CSV (*.csv)')
+        self.name_csv = name_csv
+        self.tabelle = [name_csv]
+        print(self.tabelle)
+        self.visualizza_tabelle()
     def visualizza_tabelle(self):
         """
         Crea un widget casella combinata per mostrare le tabelle nel database e aggiunge un pulsante per consentire
@@ -242,7 +252,10 @@ class Finestra(QtWidgets.QWidget):
 
         # Add button to select table
         self.btn_seleziona_tabella = QtWidgets.QPushButton('Seleziona', self)
-        self.btn_seleziona_tabella.clicked.connect(self.seleziona_tabella)
+        if self.lista_tabelle.currentText().endswith('.csv'):
+            self.btn_seleziona_tabella.clicked.connect(self.seleziona_tabella_csv)
+        else:
+            self.btn_seleziona_tabella.clicked.connect(self.seleziona_tabella)
 
         # Add combo box and button to layout
         hbox = QtWidgets.QHBoxLayout()
@@ -254,11 +267,85 @@ class Finestra(QtWidgets.QWidget):
         widget.setLayout(hbox)
         self.layout().insertWidget(1, widget)
 
+
+    def seleziona_tabella_csv(self):
+        """
+        Seleziona una tabella dal csv e ne visualizza i dati nel widget tabella, aggiungendo anche caselle di
+        controllo per consentire agli utenti di selezionare le colonne per la traduzione.
+        """
+
+        with open(self.name_csv, 'r') as file:
+            reader = csv.reader(file)
+            #reader = reader.decode('utf-8')
+            header = next(reader)  # assume first row contains column names
+            rows = list(reader)
+
+        # Clear the translation options layout
+        while self.traduzione_layout.count():
+            item = self.traduzione_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        # Remove checkboxes from the previous grid layout
+        if self.tabella_corrente in self.grid_layouts:
+            old_grid_layout = self.grid_layouts[self.tabella_corrente]
+            for row in range(old_grid_layout.rowCount()):
+                for column in range(old_grid_layout.columnCount()):
+                    item = old_grid_layout.itemAtPosition(row, column)
+                    if item is not None and item.widget() is not None:
+                        widget = item.widget()
+                        old_grid_layout.removeWidget(widget)
+                        widget.deleteLater()
+
+        # Set up the table widget
+        self.tabella.clearContents()
+        self.tabella.setColumnCount(len(header))
+        self.tabella.setRowCount(len(rows))
+        self.tabella.setHorizontalHeaderLabels(header)
+        self.tabella.setColumnWidth(0, 200)
+
+        # Create a grid layout with dynamic number of rows and columns
+        n_cols = len(header)
+        n_rows = (n_cols + 9) // 10  # assume 10 checkboxes per row
+        grid_layout = QtWidgets.QGridLayout()
+        grid_layout.setColumnStretch(n_cols, 1)
+        self.grid_layouts[self.name_csv] = grid_layout
+
+        # Fill the table with data
+        for i, row in enumerate(rows):
+            for j, value in enumerate(row):
+                self.tabella.setItem(i, j, QtWidgets.QTableWidgetItem(value))
+
+        # Add translation options for selected columns
+        self.opzioni_traduzione = {}
+        for i, colonna in enumerate(header):
+            checkbox = QtWidgets.QCheckBox(self)
+            checkbox.setText(colonna)
+            self.opzioni_traduzione[colonna] = checkbox
+
+            # Add checkbox to grid layout
+            row = i // 10
+            column = i % 10
+            grid_layout.addWidget(checkbox, row, column)
+
+        # Add horizontal stretch to the grid layout
+        spacer = QtWidgets.QSpacerItem(
+            40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
+        )
+        grid_layout.addItem(spacer, n_rows, 0, 1, -1)
+
+        # Add the grid layout to the translation options layout
+        self.traduzione_layout.addLayout(grid_layout, 0, 0, 1, 1, alignment = QtCore.Qt.AlignLeft)
+
+        # Update the current table reference
+        self.tabella_corrente = self.name_csv
     def seleziona_tabella(self):
         """
         Seleziona una tabella dal database e ne visualizza i dati nel widget tabella, aggiungendo anche caselle di
         controllo per consentire agli utenti di selezionare le colonne per la traduzione.
         """
+
         tabella_selezionata = self.lista_tabelle.currentText()
 
         # Clear the translation options layout
@@ -365,9 +452,20 @@ class Finestra(QtWidgets.QWidget):
             else:
                 self.show_info('OOPs.. somethig is wrog')
 
+        elif self.connessione is None and self.lista_tabelle.currentText().endswith('.csv'):
+            # salva le modifiche nel file CSV
+            with open(self.name_csv, 'w', newline = '') as file:
+                writer = csv.writer(file)
+                for i in range(self.tabella.rowCount()):
+                    row = []
+                    for j in range(self.tabella.columnCount()):
+                        item = self.tabella.item(i, j)
+                        if item is not None:
+                            row.append(item.text())
+                        else:
+                            row.append('')
+                    writer.writerow(row)
 
-        elif self.connessione is None:
-            self.show_info('You need connect the database')
         else:
             self.show_info('No changed data')
 
@@ -377,41 +475,61 @@ class Finestra(QtWidgets.QWidget):
         Fa una copia del db.
         :return:
         """
-        # Selezione del file di output tramite QFileDialog
-        new_db_path, _ = QFileDialog.getSaveFileName(None, "Salva copia come", "", "Database SQLite (*.sqlite)")
 
-        # Copia del file del database originale nel nuovo percorso
-        shutil.copy2(self.nome_file, new_db_path)
+        if self.connessione is not None:
+            # Selezione del file di output tramite QFileDialog
+            new_db_path, _ = QFileDialog.getSaveFileName(None, "Salva copia come", "", "Database SQLite (*.sqlite)")
 
+            # Copia del file del database originale nel nuovo percorso
+            shutil.copy2(self.nome_file, new_db_path)
+        else:
+            self.show_info(f"Questa funzione salva solo hai caricato un db sqlite, "
+                           f"'\n' per salvare la tabella csv usa la funzione 'Esporta'")
     def esporta(self):
         """
         Esporta la tabella selezionata
         :return:
         """
+        if self.connessione is not None:
+            # Esecuzione della query di selezione dei dati
+            self.cursor.execute(f"SELECT * FROM {self.lista_tabelle.currentText()}")
 
-        # Esecuzione della query di selezione dei dati
-        self.cursor.execute(f"SELECT * FROM {self.lista_tabelle.currentText()}")
+            # Lettura dei dati dalla query
+            rows = self.cursor.fetchall()
+            # Selezione del file di output tramite QFileDialog
+            output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
 
-        # Lettura dei dati dalla query
-        rows = self.cursor.fetchall()
-        # Selezione del file di output tramite QFileDialog
-        output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
+            # Apertura del file di output in modalità scrittura
+            with open(output_file, 'w', newline = '', encoding = 'utf-8') as f:
+                # Creazione di un writer CSV
+                writer = csv.writer(f)
 
-        # Apertura del file di output in modalità scrittura
-        with open(output_file, 'w', newline = '', encoding = 'utf-8') as f:
-            # Creazione di un writer CSV
-            writer = csv.writer(f)
+                # Scrittura dell'header del file CSV
+                header = [description[0] for description in self.cursor.description]
+                writer.writerow(header)
 
-            # Scrittura dell'header del file CSV
-            header = [description[0] for description in self.cursor.description]
-            writer.writerow(header)
+                # Scrittura dei dati nel file CSV
+                for row in rows:
+                    writer.writerow(row)
 
-            # Scrittura dei dati nel file CSV
-            for row in rows:
-                writer.writerow(row)
+            # Chiusura della connessione al database
+            self.connessione.close()
+        else:
+            # Selezione del file di output tramite QFileDialog
+            output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
 
-        # Chiusura della connessione al database
-        self.connessione.close()
+            # Apertura del file di output in modalità scrittura
+            with open(output_file, 'w', newline = '') as file:
+                writer = csv.writer(file)
+                for i in range(self.tabella.rowCount()):
+                    row = []
+                    for j in range(self.tabella.columnCount()):
+                        item = self.tabella.item(i, j)
+                        if item is not None:
+                            row.append(item.text())
+                        else:
+                            row.append('')
+                    writer.writerow(row)
     def translate_google(self,item, translator, in_l, out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
