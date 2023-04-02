@@ -18,8 +18,8 @@
    "value": false
   },
   {
-   "optionDest": "name",
-   "value": "TranslatorDB2english"
+   "optionDest": "icon_file",
+   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/icon/OIP.ico"
   },
   {
    "optionDest": "ascii",
@@ -71,115 +71,7 @@
   },
   {
    "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/googletrans;googletrans/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/googletrans-4.0.0rc1.dist-info;googletrans-4.0.0rc1.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/httpcore;httpcore/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/httpcore-0.9.1.dist-info;httpcore-0.9.1.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/sniffio;sniffio/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/sniffio-1.3.0.dist-info;sniffio-1.3.0.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/anyio;anyio/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/anyio-3.6.2.dist-info;anyio-3.6.2.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/certifi;certifi/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/certifi-2022.12.7.dist-info;certifi-2022.12.7.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/chardet;chardet/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/chardet-3.0.4.dist-info;chardet-3.0.4.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/h2;h2/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/h2-3.2.0.dist-info;h2-3.2.0.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/h11;h11/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/h11-0.9.0.dist-info;h11-0.9.0.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hpack;hpack/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hpack-3.0.0.dist-info;hpack-3.0.0.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hstspreload;hstspreload/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hstspreload-2023.1.1.dist-info;hstspreload-2023.1.1.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/httpx;httpx/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/httpx-0.13.3.dist-info;httpx-0.13.3.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hyperframe;hyperframe/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/hyperframe-5.2.0.dist-info;hyperframe-5.2.0.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/idna;idna/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/idna-2.10.dist-info;idna-2.10.dist-info/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/rfc3986;rfc3986/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/venv/Lib/site-packages/rfc3986-1.5.0.dist-info;rfc3986-1.5.0.dist-info/"
+   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/icon;icon/"
   }
  ],
  "nonPyinstallerOptions": {

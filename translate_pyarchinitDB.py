@@ -1,3 +1,4 @@
+import deepl
 from PyQt5 import QtGui,QtWidgets
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
@@ -5,7 +6,7 @@ from googletrans import Translator
 import difflib
 import time
 import requests
-import deepl
+from deepl import Translator
 import os
 import sqlite3
 import threading
@@ -404,10 +405,10 @@ class Finestra(QtWidgets.QWidget):
         if item is not None and item.text() != '':
             testo = item.text()
             translator = deepl.Translator(auth_key)
-            t = translator.translate_text(testo,in_l, out_l)
+            t = translator.translate_text(testo,source_lang=in_l, target_lang=out_l).text
 
 
-            item.setText(traduzione)
+            item.setText(t)
 
     def traduci_dati(self):
         """
@@ -437,7 +438,7 @@ class Finestra(QtWidgets.QWidget):
             elif selected_l == 'deepl':
 
                 translator_deepl = self.apikey_deepl()
-                language_options = {'EN_GB': 'English British', 'EN_US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
+                language_options = {'EN-GB': 'English British','EN-US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
                                     'ES': 'Spanish'}
                 # translator_deepl = deepl.Translator(self.apikey_deepl())
 
@@ -513,19 +514,23 @@ class Finestra(QtWidgets.QWidget):
             print(f"Error during translation: {e}")
             self.show_error(f"Errore durante la traduzione: {str(e)}")
     def apikey_deepl(self):
+        file_path = "deepl_api_key_.txt"
+        api_key = ""
         # Verifica se il file deepl_api_key.txt esiste
         if os.path.exists('deepl_api_key.txt'):
             # Leggi l'API Key dal file
             with open('deepl_api_key.txt', 'r') as f:
                 api_key = f.read().strip()
-                headers = {"Authorization": f"DeepL-Auth-Key {api_key}"}
-                response = requests.post("https://api.deepl.com/v2/auth", headers = headers)
+                try:
+                    translator = deepl.Translator(api_key)
+                    t = translator.translate_text('ciao', target_lang = 'EN-GB')
 
-                if response.status_code == 200:
-                    print('apikey valida')# L'API key è valida
-                else:
+                    if t:
+                        return api_key
+
+                except:
                     reply = QMessageBox.question(self, 'Warning', 'Apikey non valida'+'\n'
-                                                 +'Clicca ok per inserire la chiave', QMessageBox.Ok|QMessageBox.Cancel)
+                                                     +'Clicca ok per inserire la chiave', QMessageBox.Ok|QMessageBox.Cancel)
                     if reply==QMessageBox.Ok:
 
                         api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Inserisci apikey valida:')
@@ -537,7 +542,9 @@ class Finestra(QtWidgets.QWidget):
                             with open('deepl_api_key.txt', 'r') as f:
                                 api_key = f.read().strip()
                     else:
-                        return
+                        return api_key
+
+
         else:
             # Chiedi all'utente di inserire una nuova API Key
 
