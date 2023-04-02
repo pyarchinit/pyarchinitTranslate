@@ -22,6 +22,10 @@
    "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/icon/OIP.ico"
   },
   {
+   "optionDest": "name",
+   "value": "pyarchinitTranslator"
+  },
+  {
    "optionDest": "ascii",
    "value": false
   },
@@ -76,10 +80,14 @@
   {
    "optionDest": "datas",
    "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/intro.wav;."
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/enzoc/Documents/pyarchinitTranslate/icon/OIP.ico;."
   }
  ],
  "nonPyinstallerOptions": {
-  "increaseRecursionLimit": true,
+  "increaseRecursionLimit": false,
   "manualArguments": ""
  }
 }
