@@ -9,6 +9,8 @@ import deepl
 import os
 import sqlite3
 import threading
+import shutil
+import csv
 class Finestra(QtWidgets.QWidget):
     def __init__(self):
         """
@@ -21,6 +23,8 @@ class Finestra(QtWidgets.QWidget):
         self.opzioni_traduzione = {}
         self.init_ui()
         self.apikey=''
+        self.grid_layouts = {}  # create a dictionary to store grid layouts for each table
+        self.tabella_corrente = None
 
     def init_ui(self):
         """
@@ -47,13 +51,12 @@ class Finestra(QtWidgets.QWidget):
         salva_menu.addAction(salva_action)
 
         salva_come = QtWidgets.QAction('Salva come...', self)
-        salva_come.triggered.connect(self.salva_database)
+        salva_come.triggered.connect(self.salva_come)
         salva_menu.addAction(salva_come)
 
-        rollback = QtWidgets.QAction('Rollback', self)
-        rollback.triggered.connect(self.salva_database)
-        salva_menu.addAction(rollback)
-
+        esporta = QtWidgets.QAction('Esporta', self)
+        esporta.triggered.connect(self.esporta)
+        file_menu.addAction(esporta)
 
         stop_action = QtWidgets.QAction('Stop', self)
         stop_action.triggered.connect(self.stop_process)
@@ -92,6 +95,11 @@ class Finestra(QtWidgets.QWidget):
         # Add label for validation messages
         self.lbl_validazione = QtWidgets.QLabel(self)
 
+        # Add grid layout for translation options
+        self.traduzione_layout = QtWidgets.QGridLayout()
+        self.traduzione_groupbox = QtWidgets.QGroupBox("Opzioni traduzione")
+        self.traduzione_groupbox.setLayout(self.traduzione_layout)
+
         # Add widgets to layout
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(menubar)
@@ -100,10 +108,13 @@ class Finestra(QtWidgets.QWidget):
         vbox.addWidget(self.btn_traduci)
         vbox.addWidget(self.progress_bar)
         vbox.addWidget(self.tabella)
+        vbox.addWidget(self.traduzione_groupbox)
 
+        # Add translation options buttons to layout
         hbox.addWidget(self.btn_seleziona_tutti)
         hbox.addWidget(self.btn_deseleziona_tutti)
         vbox.addLayout(hbox)
+
         self.find_replace_dialog = FindReplaceDialog(self)
 
         # Set window properties
@@ -111,6 +122,11 @@ class Finestra(QtWidgets.QWidget):
         self.setGeometry(50, 50, 950, 600)
         self.setWindowTitle('Traduzione Database')
 
+    def aggiorna_traduzione_layout(self, text):
+        """
+        Aggiorna il layout delle opzioni di traduzione quando viene selezionata una nuova tabella
+        """
+        self.seleziona_tabella()
     def action_verifica_traduzione(self):
         """
         Verifica la validità di una traduzione confrontando il testo originale con il testo tradotto.
@@ -216,16 +232,47 @@ class Finestra(QtWidgets.QWidget):
     def seleziona_tabella(self):
         """
         Seleziona una tabella dal database e ne visualizza i dati nel widget tabella, aggiungendo anche caselle di
-        controllo per consentire agli utenti di selezionare le colonne per la traduzione
+        controllo per consentire agli utenti di selezionare le colonne per la traduzione.
         """
         tabella_selezionata = self.lista_tabelle.currentText()
+
+        # Clear the translation options layout
+        while self.traduzione_layout.count():
+            item = self.traduzione_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        # Remove checkboxes from the previous grid layout
+        if self.tabella_corrente in self.grid_layouts:
+            old_grid_layout = self.grid_layouts[self.tabella_corrente]
+            for row in range(old_grid_layout.rowCount()):
+                for column in range(old_grid_layout.columnCount()):
+                    item = old_grid_layout.itemAtPosition(row, column)
+                    if item is not None and item.widget() is not None:
+                        widget = item.widget()
+                        old_grid_layout.removeWidget(widget)
+                        widget.deleteLater()
+
+        # Set up the table widget
         self.cursor.execute(f"SELECT * FROM {tabella_selezionata}")
         self.data = self.cursor.fetchall()
         self.colonne = [desc[0] for desc in self.cursor.description]
+        print(self.colonne)
+
+        self.tabella.clearContents()
         self.tabella.setColumnCount(len(self.colonne))
         self.tabella.setRowCount(len(self.data))
         self.tabella.setHorizontalHeaderLabels(self.colonne)
         self.tabella.setColumnWidth(0, 200)
+
+        # Create a grid layout with 4 columns
+        if tabella_selezionata not in self.grid_layouts:
+            grid_layout = QtWidgets.QGridLayout()
+            grid_layout.setColumnStretch(3, 1)
+            self.grid_layouts[tabella_selezionata] = grid_layout
+        else:
+            grid_layout = self.grid_layouts[tabella_selezionata]
 
         # Fill the table with data
         for i, row in enumerate(self.data):
@@ -233,16 +280,28 @@ class Finestra(QtWidgets.QWidget):
                 self.tabella.setItem(i, j, QtWidgets.QTableWidgetItem(str(value)))
 
         # Add translation options for selected columns
+        self.opzioni_traduzione = {}
         for i, colonna in enumerate(self.colonne):
             checkbox = QtWidgets.QCheckBox(self)
             checkbox.setText(colonna)
             self.opzioni_traduzione[colonna] = checkbox
 
-            # Add checkbox to layout
-            hbox = QtWidgets.QHBoxLayout()
-            hbox.addWidget(checkbox)
-            self.layout().insertLayout(2 + i, hbox)
+            # Add checkbox to grid layout
+            row = i // 10
+            column = i % 10
+            grid_layout.addWidget(checkbox, row, column)
 
+        # Add horizontal stretch to the grid layout
+        spacer = QtWidgets.QSpacerItem(
+            40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
+        )
+        grid_layout.addItem(spacer, row + 1, 0, 1, -1)
+
+        # Add the grid layout to the translation options layout
+        self.traduzione_layout.addLayout(grid_layout, 0, 0, 1, 1, alignment=Qt.AlignLeft)
+
+        # Update the current table reference
+        self.tabella_corrente = tabella_selezionata
     def select_all_checkboxes(self, state):
         """
         Seleziona o deseleziona tutte le caselle di spunta per le opzioni di traduzione.
@@ -287,6 +346,47 @@ class Finestra(QtWidgets.QWidget):
         else:
             self.show_info('No changed data')
 
+
+    def salva_come(self):
+        """
+        Fa una copia del db.
+        :return:
+        """
+        # Selezione del file di output tramite QFileDialog
+        new_db_path, _ = QFileDialog.getSaveFileName(None, "Salva copia come", "", "Database SQLite (*.sqlite)")
+
+        # Copia del file del database originale nel nuovo percorso
+        shutil.copy2(self.nome_file, new_db_path)
+
+    def esporta(self):
+        """
+        Esporta la tabella selezionata
+        :return:
+        """
+
+        # Esecuzione della query di selezione dei dati
+        self.cursor.execute(f"SELECT * FROM {self.lista_tabelle.currentText()}")
+
+        # Lettura dei dati dalla query
+        rows = self.cursor.fetchall()
+        # Selezione del file di output tramite QFileDialog
+        output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
+
+        # Apertura del file di output in modalità scrittura
+        with open(output_file, 'w', newline = '', encoding = 'utf-8') as f:
+            # Creazione di un writer CSV
+            writer = csv.writer(f)
+
+            # Scrittura dell'header del file CSV
+            header = [description[0] for description in self.cursor.description]
+            writer.writerow(header)
+
+            # Scrittura dei dati nel file CSV
+            for row in rows:
+                writer.writerow(row)
+
+        # Chiusura della connessione al database
+        self.connessione.close()
     def translate_google(self,item, translator, in_l, out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
@@ -317,9 +417,6 @@ class Finestra(QtWidgets.QWidget):
         try:
             start_time = time.time()
 
-
-
-
             translator_options = ['google', 'deepl']
 
             selected_l, ok = QInputDialog.getItem(None,
@@ -332,18 +429,17 @@ class Finestra(QtWidgets.QWidget):
                 print('No item selected')
                 return
 
-            if selected_l=='google':
+            if selected_l == 'google':
                 language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
                                     'es': 'Spanish'}
                 translator = Translator()
 
-            elif selected_l=='deepl':
+            elif selected_l == 'deepl':
 
                 translator_deepl = self.apikey_deepl()
-                language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
-                                    'es': 'Spanish'}
-                #translator_deepl = deepl.Translator(self.apikey_deepl())
-
+                language_options = {'EN_GB': 'English British', 'EN_US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
+                                    'ES': 'Spanish'}
+                # translator_deepl = deepl.Translator(self.apikey_deepl())
 
             selected_item, ok = QInputDialog.getItem(None,
                                                      'Lingua di input',
@@ -369,23 +465,27 @@ class Finestra(QtWidgets.QWidget):
 
             in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
             out_l = list(language_options.keys())[list(language_options.values()).index(selected_item2)]
-            print(in_l,out_l)
+            print(in_l, out_l)
             self.progress_bar.setRange(0, self.tabella.rowCount())
             self.progress_bar.setValue(0)
 
             thread_list = []
 
+            translated_columns = []
+
             for j in [j for j, colonna in
                       enumerate(self.tabella.horizontalHeaderItem(j).text() for j in range(self.tabella.columnCount()))
                       if self.opzioni_traduzione[colonna].isChecked()]:
+                translated_columns.append(self.tabella.horizontalHeaderItem(j).text())
                 for i in range(self.tabella.rowCount()):
                     item = self.tabella.item(i, j)
 
                     if selected_l == 'deepl':
-                        #translator_deepl=self.apikey_deepl()
-                        t = threading.Thread(target = self.translate_deepl, args = (item, translator_deepl,in_l, out_l))
-                    if selected_l =='google':
-                        translator= Translator()
+                        # translator_deepl=self.apikey_deepl()
+                        t = threading.Thread(target = self.translate_deepl,
+                                             args = (item, translator_deepl, in_l, out_l))
+                    if selected_l == 'google':
+                        translator = Translator()
                         t = threading.Thread(target = self.translate_google, args = (item, translator, in_l, out_l))
                     thread_list.append(t)
                     t.start()
@@ -395,21 +495,23 @@ class Finestra(QtWidgets.QWidget):
                     elapsed_time = time.time() - start_time
                     estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
                     self.progress_bar.setTextVisible(True)
-                    self.progress_bar.setFormat(f"Traduzione riga {i + 1}/{self.tabella.rowCount()} - colonna {j + 1}/"
-                                                f"{self.tabella.columnCount()}\nTempo trascorso: {elapsed_time:.1f}s /"
-                                                f"Tempo Stimato {estimated_time:.1f}s ({pct:.0%})")
+                    self.progress_bar.setFormat(
+                        f"Traduzione riga {i + 1}/{self.tabella.rowCount()} - colonna {j + 1}/"
+                        f"{self.tabella.columnCount()}\nTempo trascorso: {elapsed_time:.1f}s /"
+                        f"Tempo Stimato {estimated_time:.1f}s ({pct:.0%})")
                     self.progress_bar.setAlignment(Qt.AlignCenter)
 
             for t in thread_list:
                 t.join()
-            self.show_info('Finished')
 
-            self.progress_bar.setValue(0)
+            self.show_info(
+                f"La traduzione è stata completata con successo. \n"
+                f"Sono state tradotte {i + 1} righe \n"
+                f"nelle colonne: <b>{', '.join(translated_columns)}</b>.")
+
         except Exception as e:
-            print(str(e))
-
-
-
+            print(f"Error during translation: {e}")
+            self.show_error(f"Errore durante la traduzione: {str(e)}")
     def apikey_deepl(self):
         # Verifica se il file deepl_api_key.txt esiste
         if os.path.exists('deepl_api_key.txt'):
@@ -500,6 +602,19 @@ class Finestra(QtWidgets.QWidget):
         dialog.setIcon(QMessageBox.Information)
         dialog.setText(message)
         dialog.setWindowTitle('Info')
+        dialog.setStandardButtons(QMessageBox.Ok)
+        dialog.show()
+
+    def show_error(self, message):
+        """
+        Funzione per mostrare i messaggi
+        :param message:
+        :return:
+        """
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Critical)
+        dialog.setText(message)
+        dialog.setWindowTitle('Error')
         dialog.setStandardButtons(QMessageBox.Ok)
         dialog.show()
     def show_warning(self, message):
