@@ -733,6 +733,3 @@ if __name__ == '__main__':
     timer.start(7000)
 
     sys.exit(app.exec_())
- # La classe `Finestra` contiene tre pulsanti - `btn_apri`, `btn_traduci` e `btn_seleziona_tabella` - e una tabella `tabella` per la visualizzazione dei dati. Quando l'utente fa clic sul pulsante `btn_apri`, viene mostrata una finestra di dialogo per selezionare il file del database. Se il file viene selezionato, la lista delle tabelle contenute nel database viene visualizzata nella casella di selezione `lista_tabelle` e il pulsante `btn_seleziona_tabella` viene mostrato. Quando l'utente fa clic sul pulsante `btn_seleziona_tabella`, la tabella selezionata viene visualizzata nella finestra e le opzioni di traduzione per le colonne selezionate vengono visualizzate sotto forma di checkbox.
- # Quando l'utente fa clic sul pulsante `btn_traduci`, gli elementi selezionati nella tabella vengono tradotti in inglese utilizzando l'API di Google Translate. La traduzione viene applicata solo ai campi selezionati dall'utente. I risultati della traduzione vengono visualizzati nella tabella.
- # Per aggiungere una funzione di validazione, potresti ad esempio includere una casella di selezione per specificare la lingua di origine dei dati nel database. La casella di selezione potrebbe essere utilizzata per filtrare solo i campi validi per la traduzione in inglese.
