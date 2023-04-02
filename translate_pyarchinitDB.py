@@ -1,17 +1,41 @@
-import deepl
-from PyQt5 import QtGui,QtWidgets
+import sys
+import sys
+from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtMultimedia import QMediaContent,QMediaPlayer
+from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt
 from googletrans import Translator
 import difflib
 import time
-import requests
+import deepl
 from deepl import Translator
 import os
 import sqlite3
 import threading
 import shutil
 import csv
+
+class SplashScreen(QSplashScreen):
+    def __init__(self, image_path, audio_path):
+        pixmap = QPixmap(image_path)
+        if not pixmap.isNull():
+            super().__init__(pixmap, Qt.WindowStaysOnTopHint)
+            self.player = QMediaPlayer()
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(audio_path)))
+            self.player.mediaStatusChanged.connect(self.handleMediaStateChanged)
+        else:
+            raise FileNotFoundError("Could not find image file")
+
+    def handleMediaStateChanged(self, state):
+        if state == QMediaPlayer.LoadedMedia:
+            self.show()
+            self.player.play()
+        elif state == QMediaPlayer.InvalidMedia or state == QMediaPlayer.NoMedia:
+            print("Error:", self.player.errorString())
+            self.close()
+
 class Finestra(QtWidgets.QWidget):
     def __init__(self):
         """
@@ -692,15 +716,23 @@ class FindReplaceDialog(QtWidgets.QDialog):
 
 
 if __name__ == '__main__':
-    """
-    Questo è il punto di ingresso principale del programma in cui vengono creati e visualizzati all'utente l'oggetto 
-    dell'applicazione e la finestra principale.
-    """
-    app = QtWidgets.QApplication([])
-    finestra = Finestra()
-    finestra.show()
-    app.exec_()
+    app = QApplication(sys.argv)
 
+    # Create and show splash screen
+    splash_screen = SplashScreen('OIP.jpg', 'intro.wav')
+    splash_screen.show()
+
+    # Create and show main window
+    finestra = Finestra()
+
+    # Close splash screen after a delay and show main window
+    timer = QtCore.QTimer()
+    timer.setSingleShot(True)
+    timer.timeout.connect(finestra.show)
+    timer.timeout.connect(splash_screen.close)
+    timer.start(7000)
+
+    sys.exit(app.exec_())
  # La classe `Finestra` contiene tre pulsanti - `btn_apri`, `btn_traduci` e `btn_seleziona_tabella` - e una tabella `tabella` per la visualizzazione dei dati. Quando l'utente fa clic sul pulsante `btn_apri`, viene mostrata una finestra di dialogo per selezionare il file del database. Se il file viene selezionato, la lista delle tabelle contenute nel database viene visualizzata nella casella di selezione `lista_tabelle` e il pulsante `btn_seleziona_tabella` viene mostrato. Quando l'utente fa clic sul pulsante `btn_seleziona_tabella`, la tabella selezionata viene visualizzata nella finestra e le opzioni di traduzione per le colonne selezionate vengono visualizzate sotto forma di checkbox.
  # Quando l'utente fa clic sul pulsante `btn_traduci`, gli elementi selezionati nella tabella vengono tradotti in inglese utilizzando l'API di Google Translate. La traduzione viene applicata solo ai campi selezionati dall'utente. I risultati della traduzione vengono visualizzati nella tabella.
  # Per aggiungere una funzione di validazione, potresti ad esempio includere una casella di selezione per specificare la lingua di origine dei dati nel database. La casella di selezione potrebbe essere utilizzata per filtrare solo i campi validi per la traduzione in inglese.
