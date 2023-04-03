@@ -1,5 +1,4 @@
 import sys
-import sys
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QPixmap
@@ -8,13 +7,14 @@ from PyQt5.QtWidgets import *
 from googletrans import Translator
 import difflib
 import time
-import deepl
-from deepl import Translator
+from deepl import Translator as tr_d
 import os
 import sqlite3
 import threading
 import shutil
 import csv
+from test import Postgresconnection
+
 
 class SplashScreen(QSplashScreen):
     def __init__(self, image_path, audio_path):
@@ -63,30 +63,40 @@ class Finestra(QtWidgets.QWidget):
         # Create a File menu with an Open action and a Save action
         file_menu = menubar.addMenu('File')
 
-        apri_action = QtWidgets.QAction('Apri', self)
-        apri_action.triggered.connect(self.apri_database)
-        file_menu.addAction(apri_action)
+        apri_action_menu = QtWidgets.QMenu('Apri', self)
+        file_menu.addMenu(apri_action_menu)
+
+        apri_action_db = QtWidgets.QAction('Apri db sqlite', self)
+        apri_action_db.triggered.connect(self.apri_database)
+        apri_action_menu.addAction(apri_action_db)
+
+        apri_action_pg = QtWidgets.QAction('Apri db postgres', self)
+        apri_action_pg.triggered.connect(self.apri_database_pg)
+        apri_action_menu.addAction(apri_action_pg)
 
         # Creare l'azione Salva
         salva_menu = QtWidgets.QMenu('Salva', self)
         file_menu.addMenu(salva_menu)
+        # crea sottogruppo
         salva_action = QtWidgets.QAction('Salva', self)
         salva_action.triggered.connect(self.salva_database)
         salva_menu.addAction(salva_action)
 
-        salva_come = QtWidgets.QAction('Salva come...', self)
+        salva_come = QtWidgets.QAction('Salva copia db sqlite', self)
         salva_come.triggered.connect(self.salva_come)
         salva_menu.addAction(salva_come)
 
-        importa = QtWidgets.QAction('Importa', self)
+
+        # crea importa menu
+        importa = QtWidgets.QAction('Importa CSV', self)
         importa.triggered.connect(self.importa)
         file_menu.addAction(importa)
 
-        esporta = QtWidgets.QAction('Esporta', self)
+        esporta = QtWidgets.QAction('Esporta CSV', self)
         esporta.triggered.connect(self.esporta)
         file_menu.addAction(esporta)
 
-        stop_action = QtWidgets.QAction('Stop', self)
+        stop_action = QtWidgets.QAction('Stop process', self)
         stop_action.triggered.connect(self.stop_process)
         file_menu.addAction(stop_action)
 
@@ -194,6 +204,25 @@ class Finestra(QtWidgets.QWidget):
                     item = self.tabella.item(row, column)
                     if item is not None and cerca in item.text():
                         item.setText(item.text().replace(cerca, sostituisci))
+
+    def apri_database_pg(self):
+
+        db_pg = Postgresconnection()
+        db_pg.exec_()
+        self.connessione = db_pg.get_params()
+
+
+        self.cursor = self.connessione.cursor()
+        print (self.cursor)
+        if self.cursor:
+
+            self.cursor.execute("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'")
+            self.tabelle = [tabella[0] for tabella in self.cursor.fetchall()]
+            self.visualizza_tabelle()
+
+        else:
+            self.show_error('Errore di connessione')
+            #db_pg.close()
     def apri_database(self):
         """
         Apre una finestra di dialogo file per consentire all'utente di selezionare un file sqlite, quindi si
@@ -429,7 +458,8 @@ class Finestra(QtWidgets.QWidget):
         :return:
         """
         if self.connessione is not None:
-
+            print(self.connessione)
+            self.cursor = self.connessione.cursor()
             for row_num in range(self.tabella.rowCount()):
                 row_data = []
                 for col_num in range(self.tabella.columnCount()):
@@ -442,10 +472,14 @@ class Finestra(QtWidgets.QWidget):
                 set_query = ', '.join([f"{self.colonne[i]}='{row_data[i]}'" for i in range(len(self.colonne))])
                 try:
                     query = f"UPDATE {self.lista_tabelle.currentText()} SET {set_query} WHERE {id_column_name}={row_num +1 }"
+                    print(query)
                     self.cursor.execute(query)
+
                     self.connessione.commit()
                 except Exception as e:
                     self.connessione.rollback()
+                    print(e)
+
             if query:
 
                 self.show_info('Saved')
@@ -475,7 +509,10 @@ class Finestra(QtWidgets.QWidget):
         Fa una copia del db.
         :return:
         """
-
+        self.show_info(f"Questa funzione serve per fare una copia del db sqlite."
+                       f"Quindi funziona solo se hai caricato un db sqlite. "
+                       f"'\n' per salvare la tabella csv usa la funzione 'Esporta', o se devi salvare un db postgres "
+                       f"usa la funzione salva")
         if self.connessione is not None:
             # Selezione del file di output tramite QFileDialog
             new_db_path, _ = QFileDialog.getSaveFileName(None, "Salva copia come", "", "Database SQLite (*.sqlite)")
@@ -483,7 +520,7 @@ class Finestra(QtWidgets.QWidget):
             # Copia del file del database originale nel nuovo percorso
             shutil.copy2(self.nome_file, new_db_path)
         else:
-            self.show_info(f"Questa funzione salva solo hai caricato un db sqlite, "
+            self.show_info(f"Questa funzione salva solo se hai caricato un db sqlite, "
                            f"'\n' per salvare la tabella csv usa la funzione 'Esporta'")
     def esporta(self):
         """
@@ -530,7 +567,7 @@ class Finestra(QtWidgets.QWidget):
                         else:
                             row.append('')
                     writer.writerow(row)
-    def translate_google(self,item, translator, in_l, out_l):
+    def translate_google(self,item,translator, in_l, out_l):
         """
         Funzione di supporto che traduce una singola cella della tabella in base al testo originale
         :param item:
@@ -542,12 +579,12 @@ class Finestra(QtWidgets.QWidget):
             traduzione = translator.translate(testo, src = in_l, dest = out_l).text
             item.setText(traduzione)
 
-    def translate_deepl(self,item,auth_key, in_l, out_l):
+    def translate_deepl(self,item,auth_key,out_l):
 
         if item is not None and item.text() != '':
             testo = item.text()
-            translator = deepl.Translator(auth_key)
-            t = translator.translate_text(testo,source_lang=in_l, target_lang=out_l).text
+            translator = tr_d(auth_key)
+            t = translator.translate_text(testo, target_lang=out_l).text
 
 
             item.setText(t)
@@ -575,40 +612,53 @@ class Finestra(QtWidgets.QWidget):
             if selected_l == 'google':
                 language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
                                     'es': 'Spanish'}
-                translator = Translator()
 
-            elif selected_l == 'deepl':
+                selected_item, ok = QInputDialog.getItem(None,
+                                                         'Lingua di input',
+                                                         'Seleziona una lingua di input:',
+                                                         list(language_options.values()),
+                                                         0,
+                                                         False)
+                print(list(language_options.values()))
+                if not ok:
+                    print('No item selected')
+                    return
 
+                selected_item2, ok = QInputDialog.getItem(None,
+                                                          'Lingua di output',
+                                                          'Seleziona una lingua di output:',
+                                                          list(language_options.values()),
+                                                          0,
+                                                          False)
+                print(list(language_options.values()))
+                if not ok:
+                    print('No item selected')
+                    return
+            if selected_l == 'deepl':
+                self.show_info('Sciegliendo deepl come traduttore devi solo scegliere in che lingua vuoi tradurre')
                 translator_deepl = self.apikey_deepl()
                 language_options = {'EN-GB': 'English British','EN-US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
                                     'ES': 'Spanish'}
                 # translator_deepl = deepl.Translator(self.apikey_deepl())
 
-            selected_item, ok = QInputDialog.getItem(None,
-                                                     'Lingua di input',
-                                                     'Seleziona una lingua di input:',
-                                                     list(language_options.values()),
-                                                     0,
-                                                     False)
-            print(list(language_options.values()))
-            if not ok:
-                print('No item selected')
-                return
 
-            selected_item2, ok = QInputDialog.getItem(None,
-                                                      'Lingua di output',
-                                                      'Seleziona una lingua di output:',
-                                                      list(language_options.values()),
-                                                      0,
-                                                      False)
-            print(list(language_options.values()))
-            if not ok:
-                print('No item selected')
-                return
 
-            in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
+                selected_item2, ok = QInputDialog.getItem(None,
+                                                          'Lingua di output',
+                                                          'Seleziona una lingua di output:',
+                                                          list(language_options.values()),
+                                                          0,
+                                                          False)
+                print(list(language_options.values()))
+                if not ok:
+                    print('No item selected')
+                    return
+            try:
+                in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
+            except:
+                pass
             out_l = list(language_options.keys())[list(language_options.values()).index(selected_item2)]
-            print(in_l, out_l)
+            #print(in_l, out_l)
             self.progress_bar.setRange(0, self.tabella.rowCount())
             self.progress_bar.setValue(0)
 
@@ -626,10 +676,10 @@ class Finestra(QtWidgets.QWidget):
                     if selected_l == 'deepl':
                         # translator_deepl=self.apikey_deepl()
                         t = threading.Thread(target = self.translate_deepl,
-                                             args = (item, translator_deepl, in_l, out_l))
+                                             args = (item, translator_deepl, out_l))
                     if selected_l == 'google':
-                        translator = Translator()
-                        t = threading.Thread(target = self.translate_google, args = (item, translator, in_l, out_l))
+                        tr_google = Translator()
+                        t = threading.Thread(target = self.translate_google, args = (item,tr_google, in_l, out_l))
                     thread_list.append(t)
                     t.start()
 
