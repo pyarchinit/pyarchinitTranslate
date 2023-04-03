@@ -13,7 +13,7 @@ import sqlite3
 import threading
 import shutil
 import csv
-from test import Postgresconnection
+from pg_connection import Postgresconnection
 
 
 class SplashScreen(QSplashScreen):
