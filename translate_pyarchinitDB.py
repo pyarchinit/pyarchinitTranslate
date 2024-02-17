@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import *
 from googletrans import Translator
 import difflib
 import time
+import deepl
 from deepl import Translator as tr_d
 import os
 import sqlite3
@@ -63,36 +64,36 @@ class Finestra(QtWidgets.QWidget):
         # Create a File menu with an Open action and a Save action
         file_menu = menubar.addMenu('File')
 
-        apri_action_menu = QtWidgets.QMenu('Apri', self)
+        apri_action_menu = QtWidgets.QMenu('Open', self)
         file_menu.addMenu(apri_action_menu)
 
-        apri_action_db = QtWidgets.QAction('Apri db sqlite', self)
+        apri_action_db = QtWidgets.QAction('Open db sqlite', self)
         apri_action_db.triggered.connect(self.apri_database)
         apri_action_menu.addAction(apri_action_db)
 
-        apri_action_pg = QtWidgets.QAction('Apri db postgres', self)
+        apri_action_pg = QtWidgets.QAction('Open db postgres', self)
         apri_action_pg.triggered.connect(self.apri_database_pg)
         apri_action_menu.addAction(apri_action_pg)
 
         # Creare l'azione Salva
-        salva_menu = QtWidgets.QMenu('Salva', self)
+        salva_menu = QtWidgets.QMenu('Save', self)
         file_menu.addMenu(salva_menu)
         # crea sottogruppo
-        salva_action = QtWidgets.QAction('Salva', self)
+        salva_action = QtWidgets.QAction('Save', self)
         salva_action.triggered.connect(self.salva_database)
         salva_menu.addAction(salva_action)
 
-        salva_come = QtWidgets.QAction('Salva copia db sqlite', self)
+        salva_come = QtWidgets.QAction('Save a copy of the db sqlite', self)
         salva_come.triggered.connect(self.salva_come)
         salva_menu.addAction(salva_come)
 
 
         # crea importa menu
-        importa = QtWidgets.QAction('Importa CSV', self)
+        importa = QtWidgets.QAction('Import CSV', self)
         importa.triggered.connect(self.importa)
         file_menu.addAction(importa)
 
-        esporta = QtWidgets.QAction('Esporta CSV', self)
+        esporta = QtWidgets.QAction('Export CSV', self)
         esporta.triggered.connect(self.esporta)
         file_menu.addAction(esporta)
 
@@ -107,14 +108,14 @@ class Finestra(QtWidgets.QWidget):
         find_replace_action.triggered.connect(self.show_find_replace_dialog)
         edit_menu.addAction(find_replace_action)
 
-        valida_menu = menubar.addMenu("Valida")
-        valida_traduzione_action = QtWidgets.QAction("Traduzione", self)
+        valida_menu = menubar.addMenu("Validation")
+        valida_traduzione_action = QtWidgets.QAction("Translate", self)
         valida_traduzione_action.triggered.connect(self.action_verifica_traduzione)
         valida_menu.addAction(valida_traduzione_action)
 
-        self.btn_traduci = QtWidgets.QPushButton('Traduci', self)
-        self.btn_seleziona_tutti = QtWidgets.QPushButton('Seleziona tutti', self)
-        self.btn_deseleziona_tutti = QtWidgets.QPushButton('Deseleziona tutti', self)
+        self.btn_traduci = QtWidgets.QPushButton('Translate', self)
+        self.btn_seleziona_tutti = QtWidgets.QPushButton('Select all', self)
+        self.btn_deseleziona_tutti = QtWidgets.QPushButton('Deselect all', self)
 
         # Connect button signals to slots
         self.btn_traduci.clicked.connect(self.traduci_dati)
@@ -135,7 +136,7 @@ class Finestra(QtWidgets.QWidget):
 
         # Add grid layout for translation options
         self.traduzione_layout = QtWidgets.QGridLayout()
-        self.traduzione_groupbox = QtWidgets.QGroupBox("Opzioni traduzione")
+        self.traduzione_groupbox = QtWidgets.QGroupBox("Options for translation")
         self.traduzione_groupbox.setLayout(self.traduzione_layout)
 
         # Add widgets to layout
@@ -158,7 +159,7 @@ class Finestra(QtWidgets.QWidget):
         # Set window properties
         self.setLayout(vbox)
         self.setGeometry(50, 50, 950, 600)
-        self.setWindowTitle('Traduzione Database')
+        self.setWindowTitle('Data Translation Tool')
 
     def aggiorna_traduzione_layout(self, text):
         """
@@ -180,11 +181,11 @@ class Finestra(QtWidgets.QWidget):
         ratio = s.ratio()
         if ratio > 0.9:
             valid = True
-            self.lbl_validazione.setText("La traduzione è valida.")
+            self.lbl_validazione.setText("The translation is valid.")
             self.lbl_validazione.setStyleSheet("color: green")
         else:
             valid = False
-            self.lbl_validazione.setText("La traduzione non è valida.")
+            self.lbl_validazione.setText("The translation is not valid.")
             self.lbl_validazione.setStyleSheet("color: red")
     def show_find_replace_dialog(self):
         """
@@ -221,7 +222,7 @@ class Finestra(QtWidgets.QWidget):
             self.visualizza_tabelle()
 
         else:
-            self.show_error('Errore di connessione')
+            self.show_error('Connection error')
             #db_pg.close()
     def apri_database(self):
         """
@@ -230,7 +231,7 @@ class Finestra(QtWidgets.QWidget):
         :return:
         """
         # Open file dialog to select the database file
-        nome_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Apri database', '',
+        nome_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open database', '',
                                                           'Database (*.db *.sqlite)')
         self.nome_file = nome_file
         if nome_file:
@@ -263,7 +264,7 @@ class Finestra(QtWidgets.QWidget):
             self.visualizza_tabelle()
 
     def importa(self):
-        name_csv, _= QtWidgets.QFileDialog.getOpenFileName(self, 'Apri csv', '',
+        name_csv, _= QtWidgets.QFileDialog.getOpenFileName(self, 'Open csv', '',
                                                           'CSV (*.csv)')
         self.name_csv = name_csv
         self.tabelle = [name_csv]
@@ -280,7 +281,7 @@ class Finestra(QtWidgets.QWidget):
             self.lista_tabelle.addItem(tabella)
 
         # Add button to select table
-        self.btn_seleziona_tabella = QtWidgets.QPushButton('Seleziona', self)
+        self.btn_seleziona_tabella = QtWidgets.QPushButton('Select', self)
         if self.lista_tabelle.currentText().endswith('.csv'):
             self.btn_seleziona_tabella.clicked.connect(self.seleziona_tabella_csv)
         else:
@@ -509,10 +510,10 @@ class Finestra(QtWidgets.QWidget):
         Fa una copia del db.
         :return:
         """
-        self.show_info(f"Questa funzione serve per fare una copia del db sqlite."
-                       f"Quindi funziona solo se hai caricato un db sqlite. "
-                       f"'\n' per salvare la tabella csv usa la funzione 'Esporta', o se devi salvare un db postgres "
-                       f"usa la funzione salva")
+        self.show_info(f"This function is used to make a copy of the sqlite db." 
+                       f"So it only works if you have loaded a sqlite db. " 
+                       f"'\n' to save the csv table use the 'Export' function, or if you need to save a postgres db "
+                       f"use the save function")
         if self.connessione is not None:
             # Selezione del file di output tramite QFileDialog
             new_db_path, _ = QFileDialog.getSaveFileName(None, "Salva copia come", "", "Database SQLite (*.sqlite)")
@@ -520,8 +521,8 @@ class Finestra(QtWidgets.QWidget):
             # Copia del file del database originale nel nuovo percorso
             shutil.copy2(self.nome_file, new_db_path)
         else:
-            self.show_info(f"Questa funzione salva solo se hai caricato un db sqlite, "
-                           f"'\n' per salvare la tabella csv usa la funzione 'Esporta'")
+            self.show_info(f"This function saves only if you have loaded a sqlite db, " 
+                           f"'\n' to save the csv table use the 'Export' function")
     def esporta(self):
         """
         Esporta la tabella selezionata
@@ -534,7 +535,7 @@ class Finestra(QtWidgets.QWidget):
             # Lettura dei dati dalla query
             rows = self.cursor.fetchall()
             # Selezione del file di output tramite QFileDialog
-            output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
+            output_file, _ = QFileDialog.getSaveFileName(None, "Export in CSV", "", "CSV (*.csv)")
 
             # Apertura del file di output in modalità scrittura
             with open(output_file, 'w', newline = '', encoding = 'utf-8') as f:
@@ -553,7 +554,7 @@ class Finestra(QtWidgets.QWidget):
             self.connessione.close()
         else:
             # Selezione del file di output tramite QFileDialog
-            output_file, _ = QFileDialog.getSaveFileName(None, "Esporta in CSV", "", "CSV (*.csv)")
+            output_file, _ = QFileDialog.getSaveFileName(None, "Export in CSV", "", "CSV (*.csv)")
 
             # Apertura del file di output in modalità scrittura
             with open(output_file, 'w', newline = '') as file:
@@ -600,8 +601,8 @@ class Finestra(QtWidgets.QWidget):
             translator_options = ['google', 'deepl']
 
             selected_l, ok = QInputDialog.getItem(None,
-                                                  'Tipo di traduttore',
-                                                  'Seleziona un traduttore:',
+                                                  'Translator type',
+                                                  'Select a translator:',
                                                   translator_options,
                                                   0,
                                                   False)
@@ -614,8 +615,8 @@ class Finestra(QtWidgets.QWidget):
                                     'es': 'Spanish'}
 
                 selected_item, ok = QInputDialog.getItem(None,
-                                                         'Lingua di input',
-                                                         'Seleziona una lingua di input:',
+                                                         'Input language',
+                                                         'Select an input language:',
                                                          list(language_options.values()),
                                                          0,
                                                          False)
@@ -625,8 +626,8 @@ class Finestra(QtWidgets.QWidget):
                     return
 
                 selected_item2, ok = QInputDialog.getItem(None,
-                                                          'Lingua di output',
-                                                          'Seleziona una lingua di output:',
+                                                          'Output language',
+                                                          'Select an output language:',
                                                           list(language_options.values()),
                                                           0,
                                                           False)
@@ -635,7 +636,7 @@ class Finestra(QtWidgets.QWidget):
                     print('No item selected')
                     return
             if selected_l == 'deepl':
-                self.show_info('Sciegliendo deepl come traduttore devi solo scegliere in che lingua vuoi tradurre')
+                self.show_info('By choosing deepl as your translator you just have to choose which language you want to translate into')
                 translator_deepl = self.apikey_deepl()
                 language_options = {'EN-GB': 'English British','EN-US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
                                     'ES': 'Spanish'}
@@ -644,8 +645,8 @@ class Finestra(QtWidgets.QWidget):
 
 
                 selected_item2, ok = QInputDialog.getItem(None,
-                                                          'Lingua di output',
-                                                          'Seleziona una lingua di output:',
+                                                          'Output language',
+                                                          'Select an output language:',
                                                           list(language_options.values()),
                                                           0,
                                                           False)
@@ -689,22 +690,22 @@ class Finestra(QtWidgets.QWidget):
                     estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
                     self.progress_bar.setTextVisible(True)
                     self.progress_bar.setFormat(
-                        f"Traduzione riga {i + 1}/{self.tabella.rowCount()} - colonna {j + 1}/"
-                        f"{self.tabella.columnCount()}\nTempo trascorso: {elapsed_time:.1f}s /"
-                        f"Tempo Stimato {estimated_time:.1f}s ({pct:.0%})")
+                        f"Line translation {i + 1}/{self.tabella.rowCount()} - column {j + 1}/"
+                        f"{self.tabella.columnCount()}\nTime passed: {elapsed_time:.1f}s /"
+                        f"Estimated time {estimated_time:.1f}s ({pct:.0%})")
                     self.progress_bar.setAlignment(Qt.AlignCenter)
 
             for t in thread_list:
                 t.join()
 
             self.show_info(
-                f"La traduzione è stata completata con successo. \n"
-                f"Sono state tradotte {i + 1} righe \n"
-                f"nelle colonne: <b>{', '.join(translated_columns)}</b>.")
+                f"The translation was completed successfully. \n"
+                f"They have been translated {i + 1} rows \n"
+                f"in the column: <b>{', '.join(translated_columns)}</b>.")
 
         except Exception as e:
             print(f"Error during translation: {e}")
-            self.show_error(f"Errore durante la traduzione: {str(e)}")
+            self.show_error(f"Error during translation: {str(e)}")
     def apikey_deepl(self):
         file_path = "deepl_api_key_.txt"
         api_key = ""
@@ -722,10 +723,10 @@ class Finestra(QtWidgets.QWidget):
 
                 except:
                     reply = QMessageBox.question(self, 'Warning', 'Apikey non valida'+'\n'
-                                                     +'Clicca ok per inserire la chiave', QMessageBox.Ok|QMessageBox.Cancel)
+                                                     +'Click OK to enter the key', QMessageBox.Ok|QMessageBox.Cancel)
                     if reply==QMessageBox.Ok:
 
-                        api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Inserisci apikey valida:')
+                        api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Enter valid apikey:')
                         if ok:
                             # Salva la nuova API Key nel file
                             with open('deepl_api_key.txt', 'w') as f:
@@ -740,7 +741,7 @@ class Finestra(QtWidgets.QWidget):
         else:
             # Chiedi all'utente di inserire una nuova API Key
 
-            api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Inserisci apikey:')
+            api_key, ok = QInputDialog.getText(None, 'Apikey deepl', 'Insert apikey:')
             if ok:
                 # Salva la nuova API Key nel file
                 with open('deepl_api_key.txt', 'w') as f:
@@ -751,7 +752,6 @@ class Finestra(QtWidgets.QWidget):
 
         return api_key
 
-
     def verifica_traduzione(self, testo_originale, testo_tradotto):
         """
         Funzione di supporto che verifica se la traduzione è valida confrontando il testo originale e il testo tradotto.
@@ -759,13 +759,21 @@ class Finestra(QtWidgets.QWidget):
         :param testo_tradotto:
         :return:
         """
-        if valid:
-            self.lbl_validazione.setText("La traduzione è valida.")
+        is_valid = self.check_translation(testo_originale, testo_tradotto)
+        self.set_validazione_status(is_valid)
+
+    def set_validazione_status(self, is_valid):
+        if is_valid:
+            self.lbl_validazione.setText("The translation is valid.")
             self.lbl_validazione.setStyleSheet("color: green")
         else:
-            self.lbl_validazione.setText("La traduzione non è valida.")
+            self.lbl_validazione.setText("The translation is not valid.")
             self.lbl_validazione.setStyleSheet("color: red")
 
+    def check_translation(self, testo_originale, testo_tradotto):
+        # Arbitrary check of translation validity.
+        # In a real scenario, this would likely involve more complex logic.
+        return testo_originale == testo_tradotto
     def stop_process(self):
         """
         Funzione segnaposto per arrestare un processo o un thread, ma attualmente non implementata nel codice
@@ -851,12 +859,12 @@ class FindReplaceDialog(QtWidgets.QDialog):
         self.setWindowTitle('Find and replace')
 
         # Create widgets
-        self.lbl_cerca = QtWidgets.QLabel('Cerca:')
+        self.lbl_cerca = QtWidgets.QLabel('Find:')
         self.txt_cerca = QtWidgets.QLineEdit()
-        self.lbl_sostituisci = QtWidgets.QLabel('Sostituisci con:')
+        self.lbl_sostituisci = QtWidgets.QLabel('Replace with:')
         self.txt_sostituisci = QtWidgets.QLineEdit()
-        self.btn_avvia = QtWidgets.QPushButton('Avvia')
-        self.btn_annulla = QtWidgets.QPushButton('Annulla')
+        self.btn_avvia = QtWidgets.QPushButton('Start')
+        self.btn_annulla = QtWidgets.QPushButton('Abort')
 
         # Connect button signals to slots
         self.btn_avvia.clicked.connect(self.avvia_find_replace)

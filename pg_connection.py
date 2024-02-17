@@ -1,5 +1,9 @@
 import sys
-import psycopg2
+try:
+    import psycopg2
+except ImportError:
+    print("psycopg2 non installato. Installalo con pip install psycopg2")
+    #sys.exit(1)
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QMessageBox, QLabel, QLineEdit
 from PyQt5.QtCore import QCoreApplication
 # Classe per la finestra principale dell'applicazione
@@ -10,20 +14,20 @@ class Postgresconnection(QDialog):
 
     def init_ui(self):
         # Creazione dei widget per i parametri di connessione
-        self.dbname_label = QLabel("Nome database:")
+        self.dbname_label = QLabel("Database:")
         self.dbname_input = QLineEdit()
         self.port_label = QLabel("Port:")
         self.port = QLineEdit()
-        self.user_label = QLabel("Nome utente:")
+        self.user_label = QLabel("User:")
         self.user_input = QLineEdit()
         self.password_label = QLabel("Password:")
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.host_label = QLabel("Indirizzo host:")
+        self.host_label = QLabel("Host:")
         self.host_input = QLineEdit()
 
         # Creazione dei widget per la visualizzazione dei dati
-        self.button = QPushButton("Connetti")
+        self.button = QPushButton("Connect")
         self.button.clicked.connect(self.get_params)
 
         # Layout orizzontale per i widget dei parametri di connessione
@@ -45,7 +49,7 @@ class Postgresconnection(QDialog):
         main_layout.addWidget(self.button)
 
         self.setLayout(main_layout)
-        self.setWindowTitle("Interfaccia per PostgreSQL")
+        self.setWindowTitle("Interface for PostgreSQL")
 
     # Funzione per recuperare gli utenti dal database
     def get_params(self):
@@ -78,11 +82,11 @@ class Postgresconnection(QDialog):
 # Funzione per gestire gli errori
 def show_info(message):
     QMessageBox.information(
-        None, "Ottimo", f"connessione avvenuta: {message}"
+        None, "Excellent", f"connection successful: {message}"
     )
 def handle_exception(exc_type, exc_value, exc_traceback):
     QMessageBox.critical(
-        None, "Errore", f"Si è verificato un'errore: {exc_value}"
+        None, "Error", f"An error has occurred: {exc_value}"
     )
     #sys.exit(1)
 
