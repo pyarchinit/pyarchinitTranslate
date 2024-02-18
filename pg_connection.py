@@ -1,9 +1,5 @@
 import sys
-try:
-    import psycopg2
-except ImportError:
-    print("psycopg2 non installato. Installalo con pip install psycopg2")
-    #sys.exit(1)
+import psycopg2
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QMessageBox, QLabel, QLineEdit
 from PyQt5.QtCore import QCoreApplication
 # Classe per la finestra principale dell'applicazione
