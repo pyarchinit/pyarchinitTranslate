@@ -1,4 +1,8 @@
 import sys
+
+import deepl
+import googletrans
+import requests
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QPixmap
@@ -7,7 +11,7 @@ from PyQt5.QtWidgets import *
 from googletrans import Translator
 import difflib
 import time
-import deepl
+#import deepl
 from deepl import Translator as tr_d
 import os
 import sqlite3
@@ -42,6 +46,7 @@ class Finestra(QtWidgets.QWidget):
         Inizializza una nuova istanza della classe `Finestra`.
         """
         super().__init__()
+        self.translator_deepl = None
         self.connessione = None
         self.cursor = None
         self.tabelle = []
@@ -453,14 +458,58 @@ class Finestra(QtWidgets.QWidget):
         for checkbox in self.opzioni_traduzione.values():
             checkbox.setChecked(state)
 
+    def get_db_type(self, connessione):
+        try:
+            # Tentativo per PostgreSQL con Psycopg2
+            if hasattr(connessione, 'dsn'):
+                return 'postgresql'
+            # Tentativo per SQLite
+            elif hasattr(connessione, 'execute'):
+                return 'sqlite'
+        except AttributeError:
+            pass
+        # Aggiungi qui altri DBMS se necessario
+        return 'unknown'
+
+    def get_primary_key_column_name(self, connessione, table_name):
+        db_type = self.get_db_type(connessione)
+        print(db_type)
+        if db_type == 'sqlite':
+            query = f"PRAGMA table_info({table_name})"
+            self.cursor.execute(query)
+
+            columns_info = self.cursor.fetchall()
+            print(columns_info)  # Stampa per debug
+            for col in columns_info:
+                print(col)  # Stampa ogni colonna per debug
+                if col[5] == 1:
+                    return col[1]
+
+        elif db_type == 'postgresql':
+            query = f"""
+            SELECT a.attname
+            FROM   pg_index i
+            JOIN   pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+            WHERE  i.indrelid = '{table_name}'::regclass
+            AND    i.indisprimary;
+            """
+            self.cursor.execute(query)
+            result = self.cursor.fetchone()
+            if result:
+                return result[0]
+        else:
+            raise Exception(f"DBMS non supportato: {db_type}")
+
+        raise Exception(f"Non è stato possibile trovare la colonna indice per la tabella {table_name}")
+
     def salva_database(self):
-        """
-        Salva tutte le modifiche apportate al database e chiude la connessione al database.
-        :return:
-        """
         if self.connessione is not None:
-            print(self.connessione)
             self.cursor = self.connessione.cursor()
+            table_name = self.lista_tabelle.currentText()
+
+            # Ottieni il nome della colonna indice per la tabella corrente
+            id_column_name = self.get_primary_key_column_name(self.connessione, table_name)
+
             for row_num in range(self.tabella.rowCount()):
                 row_data = []
                 for col_num in range(self.tabella.columnCount()):
@@ -468,42 +517,51 @@ class Finestra(QtWidgets.QWidget):
                     if item is not None:
                         row_data.append(item.text())
                     else:
-                        row_data.append('')
-                id_column_name = self.colonne[0]
-                set_query = ', '.join([f"{self.colonne[i]}='{row_data[i]}'" for i in range(len(self.colonne))])
-                try:
-                    query = f"UPDATE {self.lista_tabelle.currentText()} SET {set_query} WHERE {id_column_name}={row_num +1 }"
-                    print(query)
-                    self.cursor.execute(query)
+                        row_data.append(None)
 
+                id_value = row_data[self.colonne.index(id_column_name)]
+
+                # Costruisci la parte SET della query
+                set_query_parts = [f"{self.colonne[i]}=?" for i in range(len(self.colonne)) if
+                                   self.colonne[i] != id_column_name]
+                query_values = [row_data[i] for i in range(len(row_data)) if self.colonne[i] != id_column_name]
+
+                # Adatta la query per il tipo di database
+                db_type = self.get_db_type(self.connessione)
+                if db_type == "postgresql":
+                    set_query_parts = [f"{self.colonne[i]}=%s" for i in range(len(self.colonne)) if
+                                       self.colonne[i] != id_column_name]
+
+                set_query = ', '.join(set_query_parts)
+                query = f"UPDATE {table_name} SET {set_query} WHERE {id_column_name}=?"
+                if db_type == "postgresql":
+                    query = f"UPDATE {table_name} SET {set_query} WHERE {id_column_name}=%s"
+
+                try:
+                    # Esegui la query
+                    self.cursor.execute(query, query_values + [id_value])
                     self.connessione.commit()
                 except Exception as e:
                     self.connessione.rollback()
-                    print(e)
+                    print(f"Errore nell'aggiornamento del record con {id_column_name}={id_value}: {e}")
 
-            if query:
+            self.show_info('Saved')
 
-                self.show_info('Saved')
-            else:
-                self.show_info('OOPs.. somethig is wrog')
+
+        # Gestione del salvataggio CSV omessa per brevità
 
         elif self.connessione is None and self.lista_tabelle.currentText().endswith('.csv'):
-            # salva le modifiche nel file CSV
-            with open(self.name_csv, 'w', newline = '') as file:
+            # Salva le modifiche nel file CSV
+            with open(self.name_csv, 'w', newline='') as file:
                 writer = csv.writer(file)
                 for i in range(self.tabella.rowCount()):
-                    row = []
-                    for j in range(self.tabella.columnCount()):
-                        item = self.tabella.item(i, j)
-                        if item is not None:
-                            row.append(item.text())
-                        else:
-                            row.append('')
+                    row = [self.tabella.item(i, j).text() if self.tabella.item(i, j) is not None else '' for j in
+                           range(self.tabella.columnCount())]
                     writer.writerow(row)
+            self.show_info('CSV file saved')
 
         else:
             self.show_info('No changed data')
-
 
     def salva_come(self):
         """
@@ -568,37 +626,57 @@ class Finestra(QtWidgets.QWidget):
                         else:
                             row.append('')
                     writer.writerow(row)
-    def translate_google(self,item,translator, in_l, out_l):
-        """
-        Funzione di supporto che traduce una singola cella della tabella in base al testo originale
-        :param item:
-        :param translator:
-        :return:
-        """
+
+    def translate_google(self, item, translator, in_l, out_l):
+
         if item is not None and item.text() != '':
             testo = item.text()
-            traduzione = translator.translate(testo, src = in_l, dest = out_l).text
-            item.setText(traduzione)
+            try:
+                traduzione = translator.translate(testo, src=in_l, dest=out_l).text
+
+                item.setText(traduzione)
+            except Exception as e:
+                print(f"Errore durante la traduzione con Google Translate: {e}")
+                # Qui puoi decidere di loggare l'errore, mostrare un messaggio all'utente, o altro.
 
     def translate_deepl(self,item,auth_key,out_l):
 
         if item is not None and item.text() != '':
-            testo = item.text()
-            translator = tr_d(auth_key)
-            t = translator.translate_text(testo, target_lang=out_l).text
+            testoq = item.text()
+            translator_td = tr_d(auth_key)
+            trad = translator_td.translate_text(testoq, target_lang=out_l).text
 
 
-            item.setText(t)
+            item.setText(trad)
+
+    import time
+
+    def translate_libretranslate(self, item, source_lang, target_lang):
+        if item is not None and item.text() != '':
+            try:
+                #time.sleep(1)  # Introduce un ritardo di 1 secondo prima della richiesta
+                url = "https://libretranslate.de/translate"
+                payload = {"q": item.text(), "source": source_lang, "target": target_lang, "format": "text"}
+                headers = {"Content-Type": "application/json"}
+                response = requests.post(url, json=payload, headers=headers)
+                if response.ok:
+                    traduzione = response.json().get("translatedText")
+                    item.setText(traduzione)
+                else:
+                    print(f"Translation failed with LibreTranslate, status code: {response.status_code}")
+            except Exception as e:
+                print(f"Errore durante la traduzione con LibreTranslate: {e}")
 
     def traduci_dati(self):
         """
         Traduce i dati nelle colonne selezionate e visualizza l'avanzamento utilizzando la barra di avanzamento.
         :return:
         """
+        #global language_options, selected_item, selected_item2, t
         try:
             start_time = time.time()
 
-            translator_options = ['google', 'deepl']
+            translator_options = ['libretranslate', 'google', 'deepl']
 
             selected_l, ok = QInputDialog.getItem(None,
                                                   'Translator type',
@@ -635,14 +713,21 @@ class Finestra(QtWidgets.QWidget):
                 if not ok:
                     print('No item selected')
                     return
-            if selected_l == 'deepl':
-                self.show_info('By choosing deepl as your translator you just have to choose which language you want to translate into')
-                translator_deepl = self.apikey_deepl()
-                language_options = {'EN-GB': 'English British','EN-US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
-                                    'ES': 'Spanish'}
-                # translator_deepl = deepl.Translator(self.apikey_deepl())
 
+            if selected_l == 'libretranslate':
+                language_options = {'it': 'Italian', 'en': 'English', 'fr': 'French', 'ar': 'Arabic', 'de': 'German',
+                                    'es': 'Spanish'}
 
+                selected_item, ok = QInputDialog.getItem(None,
+                                                         'Input language',
+                                                         'Select an input language:',
+                                                         list(language_options.values()),
+                                                         0,
+                                                         False)
+                print(list(language_options.values()))
+                if not ok:
+                    print('No item selected')
+                    return
 
                 selected_item2, ok = QInputDialog.getItem(None,
                                                           'Output language',
@@ -653,11 +738,30 @@ class Finestra(QtWidgets.QWidget):
                 print(list(language_options.values()))
                 if not ok:
                     print('No item selected')
+
+            if selected_l == 'deepl':
+                #self.show_info('By choosing deepl as your translator you just have to choose which language you want to translate into')
+                self.translator_deepl = self.apikey_deepl()
+                language_options = {'EN-GB': 'English British','EN-US': 'English US', 'IT': 'Italian', 'FR': 'French', 'DE': 'German',
+                                    'ES': 'Spanish', 'AR': 'Arabic'}
+                # translator_deepl = deepl.Translator(self.apikey_deepl())
+
+
+                #self.show_info.close()
+                selected_item2, ok = QInputDialog.getItem(None,
+                                                          'Output language',
+                                                          'Select an output language:',
+                                                          list(language_options.values()),
+                                                          0,
+                                                          False)
+                print(list(language_options.values()))
+                if not ok:
+                    print('No item selected')
                     return
-            try:
-                in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
-            except:
-                pass
+            #try:
+            in_l = list(language_options.keys())[list(language_options.values()).index(selected_item)]
+            #except:
+                #pass
             out_l = list(language_options.keys())[list(language_options.values()).index(selected_item2)]
             #print(in_l, out_l)
             self.progress_bar.setRange(0, self.tabella.rowCount())
@@ -666,23 +770,50 @@ class Finestra(QtWidgets.QWidget):
             thread_list = []
 
             translated_columns = []
+            #t= None
+            # Identifica le colonne selezionate per la traduzione
+            colonne_da_tradurre = [j for j, _ in enumerate(
+                self.tabella.horizontalHeaderItem(j).text() for j in range(self.tabella.columnCount())) if
+                                   self.opzioni_traduzione[self.tabella.horizontalHeaderItem(j).text()].isChecked()]
 
-            for j in [j for j, colonna in
-                      enumerate(self.tabella.horizontalHeaderItem(j).text() for j in range(self.tabella.columnCount()))
-                      if self.opzioni_traduzione[colonna].isChecked()]:
+            for j in colonne_da_tradurre:
+
                 translated_columns.append(self.tabella.horizontalHeaderItem(j).text())
                 for i in range(self.tabella.rowCount()):
                     item = self.tabella.item(i, j)
 
-                    if selected_l == 'deepl':
-                        # translator_deepl=self.apikey_deepl()
-                        t = threading.Thread(target = self.translate_deepl,
-                                             args = (item, translator_deepl, out_l))
-                    if selected_l == 'google':
-                        tr_google = Translator()
-                        t = threading.Thread(target = self.translate_google, args = (item,tr_google, in_l, out_l))
-                    thread_list.append(t)
-                    t.start()
+                    # Seleziona il traduttore in base all'opzione scelta dall'utente
+                    if selected_l == 'libretranslate':
+                        # Chiama direttamente la funzione di traduzione senza usare thread
+                        self.translate_libretranslate(item, in_l, out_l)
+                        time.sleep(1)  # Introduce una pausa per rispettare i limiti di rate dell'API
+
+                        # Aggiorna la progress bar qui, se necessario
+                        self.progress_bar.setValue(i + 1)
+                        pct = (i + 1) / self.tabella.rowCount()
+                        elapsed_time = time.time() - start_time
+                        estimated_time = (elapsed_time * self.tabella.rowCount()) / (i + 1) - elapsed_time
+                        self.progress_bar.setTextVisible(True)
+                        self.progress_bar.setFormat(
+                            f"Line translation {i + 1}/{self.tabella.rowCount()} - column {j + 1}/"
+                            f"{self.tabella.columnCount()}\nTime passed: {elapsed_time:.1f}s /"
+                            f"Estimated time {estimated_time:.1f}s ({pct:.0%})")
+                        self.progress_bar.setAlignment(Qt.AlignCenter)
+
+                    elif selected_l == 'google':
+                        tr_google = googletrans.Translator()
+                        #tr_google.raise_Exception = False
+                        t = threading.Thread(target=self.translate_google, args=(item, tr_google, in_l, out_l))
+                        time.sleep(1)
+                        thread_list.append(t)
+                        # time.sleep(1)
+                        t.start()
+                    elif selected_l == 'deepl':
+                        t = threading.Thread(target=self.translate_deepl, args=(item, self.translator_deepl, out_l))
+
+                        thread_list.append(t)
+                        #time.sleep(1)
+                        t.start()
 
                     self.progress_bar.setValue(i + 1)
                     pct = (i + 1) / self.tabella.rowCount()
@@ -701,7 +832,7 @@ class Finestra(QtWidgets.QWidget):
             self.show_info(
                 f"The translation was completed successfully. \n"
                 f"They have been translated {i + 1} rows \n"
-                f"in the column: <b>{', '.join(translated_columns)}</b>.")
+                f"in the column: {', '.join(translated_columns)}.")
 
         except Exception as e:
             print(f"Error during translation: {e}")
